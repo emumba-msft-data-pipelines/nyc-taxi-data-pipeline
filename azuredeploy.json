@@ -50,15 +50,14 @@
         }
     },
 
-
     "variables": {
          "factoryName": "[concat(parameters('factoryName'), uniquestring(resourceGroup().id))]",
         "keyVaultName": "[concat(parameters('keyVaultName'), uniquestring(resourceGroup().id))]",
-        "keyVaultTemplateUri": "https://raw.githubusercontent.com/emumba-msft-data-pipelines/nyc-taxi-data-pipeline/main/nyc-taxi-data-pipeline/keyVault/azuredeploy.json",
-        "keyVaultPermissionsUpdateTemplateUri": "https://raw.githubusercontent.com/emumba-msft-data-pipelines/nyc-taxi-data-pipeline/main/nyc-taxi-data-pipeline/keyVaultPermissionsUpdate/azuredeploy.json",
-        "emptyDataFactoryTemplateUri": "https://raw.githubusercontent.com/emumba-msft-data-pipelines/nyc-taxi-data-pipeline/main/nyc-taxi-data-pipeline/dataFactory/azuredeploy.json",
-        "synapsewsAndSqlPoolTemplateUri": "https://raw.githubusercontent.com/emumba-msft-data-pipelines/nyc-taxi-data-pipeline/main/nyc-taxi-data-pipeline/synapsewsAndSqlPool/azuredeploy.json",
-        "dataFactoryTemplateUri": "https://raw.githubusercontent.com/emumba-msft-data-pipelines/nyc-taxi-data-pipeline/main/nyc-taxi-data-pipeline/dataFactoryResources/azuredeploy.json"
+        "keyVaultTemplateUri": "https://raw.githubusercontent.com/emumba-msft-data-pipelines/nyc-taxi-data-pipeline/nyctaxiPipelineLinkedARM/keyVault/azuredeploy.json",
+        "keyVaultPermissionsUpdateTemplateUri": "https://raw.githubusercontent.com/emumba-msft-data-pipelines/nyc-taxi-data-pipeline/nyctaxiPipelineLinkedARM/keyVaultPermissionsUpdate/azuredeploy.json",
+        "emptyDataFactoryTemplateUri": "https://raw.githubusercontent.com/emumba-msft-data-pipelines/nyc-taxi-data-pipeline/nyctaxiPipelineLinkedARM/dataFactory/azuredeploy.json",
+        "synapsewsAndSqlPoolTemplateUri": "https://raw.githubusercontent.com/emumba-msft-data-pipelines/nyc-taxi-data-pipeline/nyctaxiPipelineLinkedARM/synapseWorkspaceSqlPool/azuredeploy.json",
+        "dataFactoryTemplateUri": "https://raw.githubusercontent.com/emumba-msft-data-pipelines/nyc-taxi-data-pipeline/nyctaxiPipelineLinkedARM/dataFactoryResources/azuredeploy.json"
     
     },
     "resources": [
