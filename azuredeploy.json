@@ -1,0 +1,222 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "factoryName": {
+            "type": "string",
+            "metadata": {
+                "description": "The name you provide will be appended with a unique sting to make it globally available. The name can contain only letters, numbers and hyphens. The first and last characters must be a letter or number. Spaces are not allowed."
+            }
+        },
+        "location": {
+            "type": "string",
+            "metadata": {
+                "description": "Location of the data factory. Currently, only East US, East US 2, and West Europe are supported. "
+            }
+        },
+
+        "synapseWorkspaceName": {
+            "type": "string"
+        },
+        "synapseWorkspaceStorageAccountName": {
+            "type": "string"
+        },
+        "synapseWorkspaceStorageFilesystemName": {
+            "type": "string"
+        },
+        "sqlPoolAdministratorLogin": {
+            "type": "string"
+        },
+        "sqlPoolAdministratorLoginPassword": {
+            "type": "secureString"
+        },
+        "SqlPoolName": {
+            "type": "string"
+        },
+        "synapseWorkspacestorageRoleUniqueId": {
+            "type": "string"
+        },
+        "keyVaultName": {
+            "type": "string",
+            "metadata": {
+              "description": "Specifies the name of the key vault."
+            }
+          },
+        "azureUserObjectId": {
+          "type": "string",
+          "metadata": {
+              "description": "Kindly give your Object Id so that full permissions to key vault can be assigned to you"
+            }
+        }
+    },
+
+
+    "variables": {
+         "factoryName": "[concat(parameters('factoryName'), uniquestring(resourceGroup().id))]",
+        "keyVaultName": "[concat(parameters('keyVaultName'), uniquestring(resourceGroup().id))]",
+        "keyVaultTemplateUri": "https://raw.githubusercontent.com/emumba-msft-data-pipelines/nyc-taxi-data-pipeline/main/nyc-taxi-data-pipeline/keyVault/azuredeploy.json",
+        "keyVaultPermissionsUpdateTemplateUri": "https://raw.githubusercontent.com/emumba-msft-data-pipelines/nyc-taxi-data-pipeline/main/nyc-taxi-data-pipeline/keyVaultPermissionsUpdate/azuredeploy.json",
+        "emptyDataFactoryTemplateUri": "https://raw.githubusercontent.com/emumba-msft-data-pipelines/nyc-taxi-data-pipeline/main/nyc-taxi-data-pipeline/dataFactory/azuredeploy.json",
+        "synapsewsAndSqlPoolTemplateUri": "https://raw.githubusercontent.com/emumba-msft-data-pipelines/nyc-taxi-data-pipeline/main/nyc-taxi-data-pipeline/synapsewsAndSqlPool/azuredeploy.json",
+        "dataFactoryTemplateUri": "https://raw.githubusercontent.com/emumba-msft-data-pipelines/nyc-taxi-data-pipeline/main/nyc-taxi-data-pipeline/dataFactoryResources/azuredeploy.json"
+    
+    },
+    "resources": [
+      
+        {
+            "name": "keyVaultTemplate",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2018-05-01",
+            "dependsOn": [
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[variables('keyVaultTemplateUri')]"
+                },
+                "parameters": {
+                    "location": {
+                        "value": "[parameters('location')]"
+                    },
+                    "keyVaultName": {
+                        "value": "[variables('keyVaultName')]"
+                    },
+                    "sqlPoolAdministratorLoginPassword": {
+                        "value": "[parameters('sqlPoolAdministratorLoginPassword')]"
+                    }
+                }
+            }
+        },
+         {
+            "name": "emptyDataFactory",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2018-05-01",
+            "dependsOn": [
+                "[resourceId('Microsoft.Resources/deployments','keyVaultTemplate')]"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[variables('emptyDataFactoryTemplateUri')]"
+                },
+                "parameters": {
+                    "location": {
+                        "value": "[parameters('location')]"
+                    },
+                    "factoryName": {
+                        "value": "[variables('factoryName')]"
+                    }
+                }
+            }
+        },
+        {
+            "name": "synapsewsAndSqlPool",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2018-05-01",
+            "dependsOn": [
+                "[resourceId('Microsoft.Resources/deployments','keyVaultTemplate')]"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[variables('synapsewsAndSqlPoolTemplateUri')]"
+                },
+                "parameters": {
+                    "location": {
+                        "value": "[parameters('location')]"
+                    },
+                    "synapseWorkspaceName": {
+                        "value": "[parameters('synapseWorkspaceName')]"
+                    },
+                    "synapseWorkspaceStorageAccountName": {
+                        "value": "[parameters('synapseWorkspaceStorageAccountName')]"
+                    },
+                    "synapseWorkspaceStorageFilesystemName": {
+                        "value": "[parameters('synapseWorkspaceStorageFilesystemName')]"
+                    },
+                    "sqlPoolAdministratorLogin": {
+                        "value": "[parameters('sqlPoolAdministratorLogin')]"
+                    },
+                    "sqlPoolAdministratorLoginPassword": {
+                        "value": "[parameters('sqlPoolAdministratorLoginPassword')]"
+                    },
+                    "SqlPoolName": {
+                        "value": "[parameters('SqlPoolName')]"
+                    },
+                    "synapseWorkspacestorageRoleUniqueId": {
+                        "value": "[parameters('synapseWorkspacestorageRoleUniqueId')]"
+                    }
+                                   
+                }
+            }
+        },
+        {
+            "name": "keyVaultPermissionsUpdateTemplate",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2018-05-01",
+            "dependsOn": [
+                "[resourceId('Microsoft.Resources/deployments','emptyDataFactory')]",
+                "[resourceId('Microsoft.Resources/deployments','synapsewsAndSqlPool')]"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[variables('keyVaultPermissionsUpdateTemplateUri')]"
+                },
+                "parameters": {
+                    "location": {
+                        "value": "[parameters('location')]"
+                    },
+                    "keyVaultName": {
+                        "value": "[variables('keyVaultName')]"
+                    },
+                    "factoryName": {
+                        "value": "[variables('factoryName')]"
+                    },
+                    "azureUserObjectId": {
+                        "value": "[parameters('azureUserObjectId')]"
+                    }
+                }
+            }
+        },
+        
+       
+        {
+            "name": "dataFactoryTemplate",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2018-05-01",
+            "dependsOn": [
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[variables('dataFactoryTemplateUri')]"
+                },
+                "parameters": {
+                    "factoryName": {
+                        "value": "[variables('factoryName')]"
+                    },
+                    
+                    "location": {
+                        "value": "[parameters('location')]"
+                    },
+                    "synapseWorkspaceName": {
+                        "value": "[parameters('synapseWorkspaceName')]"
+                    },
+                    "sqlPoolAdministratorLogin": {
+                        "value": "[parameters('sqlPoolAdministratorLogin')]"
+                    },
+                    "sqlPoolAdministratorLoginPassword": {
+                        "value": "[parameters('sqlPoolAdministratorLoginPassword')]"
+                    },
+                    "SqlPoolName": {
+                        "value": "[parameters('SqlPoolName')]"
+                    },
+                    "keyVaultName": {
+                        "value": "[variables('keyVaultName')]"
+                    }
+                }
+            }
+        }
+    ]
+}
