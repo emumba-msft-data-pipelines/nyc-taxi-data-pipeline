@@ -1,0 +1,619 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "factoryName": {
+            "type": "string",
+            "metadata": {
+                "description": "The name you provide will be appended with a unique sting to make it globally available. The name can contain only letters, numbers and hyphens. The first and last characters must be a letter or number. Spaces are not allowed."
+            }
+        },
+        "location": {
+            "type": "string",
+            "metadata": {
+                "description": "Location of the data factory. Currently, only East US, East US 2, and West Europe are supported. "
+            }
+        },
+        "storageAccountName": {
+            "type": "string",
+            "metadata": {
+                "description": "The name you provide will be appended with a unique sting to make it globally available. The field can contain only lowercase letters and numbers. Name must be between 1 and 11 characters."
+            }      
+        },
+
+        "synapseWorkspaceName": {
+            "type": "string"
+        },
+        "synapseWorkspaceStorageAccountName": {
+            "type": "string"
+        },
+        "synapseWorkspaceStorageFilesystemName": {
+            "type": "string"
+        },
+        "sqlPoolAdministratorLogin": {
+            "type": "string"
+        },
+        "sqlPoolAdministratorLoginPassword": {
+            "type": "secureString"
+        },
+        "SqlPoolName": {
+            "type": "string"
+        },
+        "synapseWorkspacestorageRoleUniqueId": {
+            "type": "string"
+        },
+        "keyVaultName": {
+            "type": "string",
+            "metadata": {
+              "description": "Specifies the name of the key vault."
+            }
+          },
+        "azureUserObjectId": {
+          "type": "string",
+          "metadata": {
+              "description": "Kindly give your Object Id so that full permissions to key vault can be assigned to you"
+            }
+        }
+    },
+
+
+    "variables": {
+        "containerName": "public",
+        "factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]",
+        "storageAccountId": "[concat(resourceGroup().id,'/providers/Microsoft.Storage/storageAccounts/', parameters('storageAccountName'))]",
+        "storageBlobDataContributorRoleID": "ba92f5b4-2d11-453d-a403-e96b0029c9fe",
+        "defaultDataLakeStorageAccountUrl": "[concat('https://', parameters('synapseWorkspaceStorageAccountName'), '.dfs.core.windows.net')]",
+        "keyVaultbaseUrl":"[concat('https://',parameters('keyVaultName'),'.vault.azure.net')]",
+        "sqlSecretName": "sqlPoolServerAdministratorLoginPassword",
+        "sqlSecretValue": "[parameters('sqlPoolAdministratorLoginPassword')]",
+        "tenantId": "[subscription().tenantId]"
+    },
+    "resources": [
+
+        {
+            "type": "Microsoft.DataFactory/factories",
+            "apiVersion": "2018-06-01",
+            "name": "[parameters('factoryName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Environment": "Public",
+                "AssociatedDataSet": "NYCTAXI"
+            },
+            "identity": {
+                "type": "SystemAssigned"
+            }
+        },
+
+        {
+            "apiVersion": "2019-06-01-preview",
+            "name": "[parameters('synapseWorkspaceName')]",
+            "location": "[parameters('location')]",
+            "type": "Microsoft.Synapse/workspaces",
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "defaultDataLakeStorage": {
+                    "accountUrl": "[variables('defaultDataLakeStorageAccountUrl')]",
+                    "filesystem": "[parameters('synapseWorkspaceStorageFilesystemName')]"
+                },
+                "sqlAdministratorLogin": "[parameters('sqlPoolAdministratorLogin')]",
+                "sqlAdministratorLoginPassword": "[parameters('sqlPoolAdministratorLoginPassword')]"
+            },
+            "resources": [
+                {
+                    "type": "Microsoft.Synapse/workspaces/sqlPools",
+                    "apiVersion": "2019-06-01-preview",
+                    "name": "[concat(parameters('synapseWorkspaceName'), '/', parameters('SqlPoolName'))]",
+                    "location": "[parameters('location')]",
+                    "sku": {
+                        "name": "DW100c",
+                        "capacity": 0
+                    },
+                    "properties": {
+                        "maxSizeBytes": 263882790666240,
+                        "collation": "SQL_Latin1_General_CP1_CI_AS"
+                    },
+                    "dependsOn": [
+                        "[concat('Microsoft.Synapse/workspaces/', parameters('synapseWorkspaceName'))]"]
+                },
+                {
+                    "type": "Microsoft.Synapse/workspaces/firewallRules",
+                    "apiVersion": "2019-06-01-preview",
+                    "dependsOn": [
+                        "[concat('Microsoft.Synapse/workspaces/', parameters('synapseWorkspaceName'))]"
+                    ],
+                    "location": "[parameters('location')]",
+                    "name": "[concat(parameters('synapseWorkspaceName'), '/allowAll')]",
+                    "properties": {
+                        "startIpAddress": "0.0.0.0",
+                        "endIpAddress": "255.255.255.255"
+                    }
+                },
+                {
+                    "type": "Microsoft.Synapse/workspaces/integrationruntimes",
+                    "apiVersion": "2019-06-01-preview",
+                    "name": "[concat(parameters('synapseWorkspaceName'), '/AutoResolveIntegrationRuntime')]",
+                    "dependsOn": [
+                        "[concat('Microsoft.Synapse/workspaces/', parameters('synapseWorkspaceName'))]"
+                    ],
+                    "properties": {
+                        "type": "Managed",
+                        "typeProperties": {
+                            "computeProperties": {
+                                "location": "AutoResolve"
+                            }
+                        }
+                    }
+                }
+            ],
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', parameters('synapseWorkspaceStorageAccountName'))]",
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('synapseWorkspaceStorageAccountName'), 'default', parameters('synapseWorkspaceStorageFilesystemName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2020-08-01-preview",
+            "name": "[parameters('synapseWorkspaceStorageAccountName')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "Standard_RAGRS",
+                "tier": "Standard"
+            },
+            "kind": "StorageV2",
+            "properties": {
+                "isHnsEnabled": false,
+                "networkAcls": {
+                    "bypass": "AzureServices",
+                    "virtualNetworkRules": [],
+                    "ipRules": [],
+                    "defaultAction": "Allow"
+                },
+                "supportsHttpsTrafficOnly": true,
+                "encryption": {
+                    "services": {
+                        "file": {
+                            "keyType": "Account",
+                            "enabled": true
+                        },
+                        "blob": {
+                            "keyType": "Account",
+                            "enabled": true
+                        }
+                    },
+                    "keySource": "Microsoft.Storage"
+                },
+                "accessTier": "Hot"
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices",
+            "apiVersion": "2020-08-01-preview",
+            "name": "[concat(parameters('synapseWorkspaceStorageAccountName'), '/default')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('synapseWorkspaceStorageAccountName'))]"
+            ],
+            "sku": {
+                "name": "Standard_RAGRS",
+                "tier": "Standard"
+            },
+            "properties": {
+                "cors": {
+                    "corsRules": []
+                },
+                "deleteRetentionPolicy": {
+                    "enabled": false
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+            "apiVersion": "2020-08-01-preview",
+            "name": "[concat(parameters('synapseWorkspaceStorageAccountName'), '/default/', parameters('synapseWorkspaceStorageFilesystemName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', parameters('synapseWorkspaceStorageAccountName'), 'default')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('synapseWorkspaceStorageAccountName'))]"
+            ],
+            "properties": {
+                "defaultEncryptionScope": "$account-encryption-key",
+                "denyEncryptionScopeOverride": false,
+                "publicAccess": "none"
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/providers/roleAssignments",
+            "apiVersion": "2018-09-01-preview",
+            "name": "[concat(parameters('synapseWorkspaceStorageAccountName'), '/Microsoft.Authorization/',  guid(concat(resourceGroup().id, '/', variables('storageBlobDataContributorRoleID'), '/', parameters('synapseWorkspaceName'), '/', parameters('synapseWorkspacestorageRoleUniqueId'))))]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', variables('storageBlobDataContributorRoleID'))]",
+                "principalId": "[reference(concat('Microsoft.Synapse/workspaces/', parameters('synapseWorkspaceName')), '2019-06-01-preview', 'Full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Synapse/workspaces/', parameters('synapseWorkspaceName'))]"
+            ]
+        },
+
+       
+      {
+        "type": "Microsoft.KeyVault/vaults/secrets",
+        "apiVersion": "2019-09-01",
+        "name": "[concat(parameters('keyVaultName'), '/', variables('sqlSecretName'))]",
+        "location": "[parameters('location')]",
+        "dependsOn": [
+          "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+        ],
+        "properties": {
+          "value": "[variables('sqlSecretValue')]"
+        }
+      },
+      {
+        "type": "Microsoft.KeyVault/vaults",
+        "apiVersion": "2019-09-01",
+        "name": "[parameters('keyVaultName')]",
+        "location": "[parameters('location')]",
+        "tags": {
+            "Environment": "Public",
+            "AssociatedDataSet": "USAFacts"
+        },
+        "properties": {
+          "tenantId": "[variables('tenantId')]",
+          "accessPolicies": [
+            {
+                "tenantId": "[variables('tenantId')]",
+                "objectId": "[reference(concat('Microsoft.DataFactory/factories/', parameters('factoryName')), '2018-06-01', 'Full').identity.principalId]",
+                "permissions": {
+                    "keys": [],
+                    "secrets": [
+                        "Get"
+                    ],
+                    "certificates": []
+                }
+            },
+            {
+                "tenantId": "[variables('tenantId')]",
+                "objectId": "[parameters('azureUserObjectId')]",
+                "permissions": {
+                    "keys": [
+                        "Get",
+                        "List",
+                        "Update",
+                        "Create",
+                        "Import",
+                        "Delete",
+                        "Recover",
+                        "Backup",
+                        "Restore",
+                        "Decrypt",
+                        "Encrypt",
+                        "UnwrapKey",
+                        "WrapKey",
+                        "Verify",
+                        "Sign",
+                        "Purge"
+                    ],
+                    "secrets": [
+                        "Get",
+                        "List",
+                        "Set",
+                        "Delete",
+                        "Recover",
+                        "Backup",
+                        "Restore",
+                        "Purge"
+                    ],
+                    "certificates": [
+                        "Get",
+                        "List",
+                        "Update",
+                        "Create",
+                        "Import",
+                        "Delete",
+                        "Recover",
+                        "Backup",
+                        "Restore",
+                        "ManageContacts",
+                        "ManageIssuers",
+                        "GetIssuers",
+                        "ListIssuers",
+                        "SetIssuers",
+                        "DeleteIssuers",
+                        "Purge"
+                    ]
+                }
+            }
+        ],
+          "sku": {
+            "name": "Standard",
+            "family": "A"
+          },
+          "networkAcls": {
+            "defaultAction": "Allow",
+            "bypass": "AzureServices"
+          }
+        }
+      },
+
+
+        {
+            "name": "[concat(parameters('factoryName'), '/NYC_Taxi_Dataset_Source')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "azure_synapse_linkedservice",
+                    "type": "LinkedServiceReference"
+                },
+                "parameters": {
+                    "SchemaName": {
+                        "type": "string"
+                    }
+                },
+                "folder": {
+                    "name": "NYC_Taxi_Datasets/Source"
+                },
+                "annotations": [],
+                "type": "AzureSqlDWTable",
+                "schema": [],
+                "typeProperties": {
+                    "schema": "dbo",
+                    "table": "nyctaxi"
+                }
+            },
+            "dependsOn": [
+                "[parameters('factoryName')]",
+                "[concat(variables('factoryId'), '/linkedServices/azure_synapse_linkedservice')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/azure_synapse_linkedservice')]",
+            "type": "Microsoft.DataFactory/factories/linkedServices",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "type": "AzureSqlDW",
+                "typeProperties": {
+                    "connectionString": "[concat('Server=tcp:', parameters('synapseWorkspaceName'), '.sql.azuresynapse.net,1433;Initial Catalog=', parameters('SqlPoolName'), ';Persist Security Info=False;User ID=', parameters('sqlPoolAdministratorLogin'), ';Password=', parameters('sqlPoolAdministratorLoginPassword'), ';MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;')]",
+                    "password": {
+                        "type": "AzureKeyVaultSecret",
+                        "store": {
+                            "referenceName": "azure_key_vault_linkedservice",
+                            "type": "LinkedServiceReference"
+                        },
+                        "secretName": "[variables('sqlSecretName')]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[parameters('factoryName')]",
+                "[concat(variables('factoryId'), '/linkedServices/azure_key_vault_linkedservice')]"
+            ]
+        },
+
+         {
+            "name": "[concat(parameters('factoryName'), '/azure_key_vault_linkedservice')]",
+            "type": "Microsoft.DataFactory/factories/linkedServices",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "description": "This key vault linked service will be used for storing and accessing credentials in azure data factory",
+                "annotations": [],
+                "type": "AzureKeyVault",
+                "typeProperties": {
+                    "baseUrl": "[variables('keyVaultbaseUrl')]"
+                }
+            },
+            "dependsOn": [
+                "[parameters('factoryName')]"
+            ]
+        },
+       
+        {
+            "name": "[concat(parameters('factoryName'), '/NYC_Taxi_Data_Loading_Pipeline')]",
+            "type": "Microsoft.DataFactory/factories/pipelines",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "activities": [
+                    {
+                        "name": "Create Stored Proc For NYC Taxi Tables",
+                        "description": "This activity will create stored procedure for creating all required tables.",
+                        "type": "Lookup",
+                        "dependsOn": [
+                            {
+                                "activity": "Create Schema If Does Not Exists",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.00:05:00",
+                            "retry": 3,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "SqlDWSource",
+                                "sqlReaderQuery": {
+                                    "value": "select Count(*) from sys.symmetric_keys;\nBEGIN\nEXEC('CREATE PROCEDURE @{pipeline().parameters.SchemaName}.SchemaCreationProc\nAS\nIF OBJECT_ID(N''[@{pipeline().parameters.SchemaName}].[Date]'', N''U'') IS NULL\nCREATE TABLE  [@{pipeline().parameters.SchemaName}].[Date]\n(\n    [DateID] int NOT NULL,\n    [Date] datetime NULL,\n    [DateBKey] char(10) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DayOfMonth] varchar(2) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DaySuffix] varchar(4) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DayName] varchar(9) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DayOfWeek] char(1) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DayOfWeekInMonth] varchar(2) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DayOfWeekInYear] varchar(2) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DayOfQuarter] varchar(3) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DayOfYear] varchar(3) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [WeekOfMonth] varchar(1) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [WeekOfQuarter] varchar(2) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [WeekOfYear] varchar(2) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [Month] varchar(2) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [MonthName] varchar(9) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [MonthOfQuarter] varchar(2) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [Quarter] char(1) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [QuarterName] varchar(9) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [Year] char(4) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [YearName] char(7) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [MonthYear] char(10) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [MMYYYY] char(6) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [FirstDayOfMonth] date NULL,\n    [LastDayOfMonth] date NULL,\n    [FirstDayOfQuarter] date NULL,\n    [LastDayOfQuarter] date NULL,\n    [FirstDayOfYear] date NULL,\n    [LastDayOfYear] date NULL,\n    [IsHolidayUSA] bit NULL,\n    [IsWeekday] bit NULL,\n    [HolidayUSA] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL\n)\nWITH\n(\n    DISTRIBUTION = ROUND_ROBIN,\n    CLUSTERED COLUMNSTORE INDEX\n);\nIF OBJECT_ID(N''[@{pipeline().parameters.SchemaName}].[Geography]'', N''U'') IS NULL\nCREATE TABLE [@{pipeline().parameters.SchemaName}].[Geography]\n(\n    [GeographyID] int NOT NULL,\n    [ZipCodeBKey] varchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,\n    [County] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [City] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [State] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [Country] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [ZipCode] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL\n)\nWITH\n(\n    DISTRIBUTION = ROUND_ROBIN,\n    CLUSTERED COLUMNSTORE INDEX\n);\nIF OBJECT_ID(N''[@{pipeline().parameters.SchemaName}].[HackneyLicense]'', N''U'') IS NULL\nCREATE TABLE [@{pipeline().parameters.SchemaName}].[HackneyLicense]\n(\n    [HackneyLicenseID] int NOT NULL,\n    [HackneyLicenseBKey] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,\n    [HackneyLicenseCode] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL\n)\nWITH\n(\n    DISTRIBUTION = ROUND_ROBIN,\n    CLUSTERED COLUMNSTORE INDEX\n);\nIF OBJECT_ID(N''[@{pipeline().parameters.SchemaName}].[Medallion]'', N''U'') IS NULL\nCREATE TABLE [@{pipeline().parameters.SchemaName}].[Medallion]\n(\n    [MedallionID] int NOT NULL,\n    [MedallionBKey] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,\n    [MedallionCode] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL\n)\nWITH\n(\n    DISTRIBUTION = ROUND_ROBIN,\n    CLUSTERED COLUMNSTORE INDEX\n);\nIF OBJECT_ID(N''[@{pipeline().parameters.SchemaName}].[Time]'', N''U'') IS NULL\nCREATE TABLE [@{pipeline().parameters.SchemaName}].[Time]\n(\n    [TimeID] int NOT NULL,\n    [TimeBKey] varchar(8) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,\n    [HourNumber] tinyint NOT NULL,\n    [MinuteNumber] tinyint NOT NULL,\n    [SecondNumber] tinyint NOT NULL,\n    [TimeInSecond] int NOT NULL,\n    [HourlyBucket] varchar(15) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,\n    [DayTimeBucketGroupKey] int NOT NULL,\n    [DayTimeBucket] varchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL\n)\nWITH\n(\n    DISTRIBUTION = ROUND_ROBIN,\n    CLUSTERED COLUMNSTORE INDEX\n);\nIF OBJECT_ID(N''[@{pipeline().parameters.SchemaName}].[Trip]'', N''U'') IS NULL\nCREATE TABLE [@{pipeline().parameters.SchemaName}].[Trip]\n(\n    [DateID] int NOT NULL,\n    [MedallionID] int NOT NULL,\n    [HackneyLicenseID] int NOT NULL,\n    [PickupTimeID] int NOT NULL,\n    [DropoffTimeID] int NOT NULL,\n    [PickupGeographyID] int NULL,\n    [DropoffGeographyID] int NULL,\n    [PickupLatitude] float NULL,\n    [PickupLongitude] float NULL,\n    [PickupLatLong] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DropoffLatitude] float NULL,\n    [DropoffLongitude] float NULL,\n    [DropoffLatLong] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [PassengerCount] int NULL,\n    [TripDurationSeconds] int NULL,\n    [TripDistanceMiles] float NULL,\n    [PaymentType] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [FareAmount] money NULL,\n    [SurchargeAmount] money NULL,\n    [TaxAmount] money NULL,\n    [TipAmount] money NULL,\n    [TollsAmount] money NULL,\n    [TotalAmount] money NULL\n)\nWITH\n(\n    DISTRIBUTION = ROUND_ROBIN,\n    CLUSTERED COLUMNSTORE INDEX\n);\nIF OBJECT_ID(N''[@{pipeline().parameters.SchemaName}].[Weather]'', N''U'') IS NULL\nCREATE TABLE [@{pipeline().parameters.SchemaName}].[Weather]\n(\n    [DateID] int NOT NULL,\n    [GeographyID] int NOT NULL,\n    [PrecipitationInches] float NOT NULL,\n    [AvgTemperatureFahrenheit] float NOT NULL\n)\nWITH\n(\n    DISTRIBUTION = ROUND_ROBIN,\n    CLUSTERED COLUMNSTORE INDEX\n);')\nselect Count(*) from sys.symmetric_keys;\nEND",
+                                    "type": "Expression"
+                                },
+                                "queryTimeout": "02:00:00",
+                                "partitionOption": "None"
+                            },
+                            "dataset": {
+                                "referenceName": "NYC_Taxi_Dataset_Source",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "SchemaName": {
+                                        "value": "@pipeline().parameters.SchemaName",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "name": "Create Stored Proc For NYC Taxi Data Loading",
+                        "description": "This activity will create stored procedure for loading data into tables",
+                        "type": "Lookup",
+                        "dependsOn": [
+                            {
+                                "activity": "Execute Stored Procedure For Creating Tables",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.00:05:00",
+                            "retry": 3,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "SqlDWSource",
+                                "sqlReaderQuery": {
+                                    "value": "select Count(*) from sys.symmetric_keys;\nBEGIN\nEXEC('CREATE PROCEDURE @{pipeline().parameters.SchemaName}.DataLoadingProc\nAS\nCOPY INTO [@{pipeline().parameters.SchemaName}].[Date]\nFROM ''https://nytaxiblob.blob.core.windows.net/2013/Date''\nWITH\n(\n    FILE_TYPE = ''CSV'',\n\tFIELDTERMINATOR = '','',\n\tFIELDQUOTE = ''''\n)\nOPTION (LABEL = ''COPY : Load [@{pipeline().parameters.SchemaName}].[Date] - Taxi dataset'');\n\n\nCOPY INTO [@{pipeline().parameters.SchemaName}].[Geography]\nFROM ''https://nytaxiblob.blob.core.windows.net/2013/Geography''\nWITH\n(\n    FILE_TYPE = ''CSV'',\n\tFIELDTERMINATOR = '','',\n\tFIELDQUOTE = ''''\n)\nOPTION (LABEL = ''COPY : Load [@{pipeline().parameters.SchemaName}].[Geography] - Taxi dataset'');\n\nCOPY INTO [@{pipeline().parameters.SchemaName}].[HackneyLicense]\nFROM ''https://nytaxiblob.blob.core.windows.net/2013/HackneyLicense''\nWITH\n(\n    FILE_TYPE = ''CSV'',\n\tFIELDTERMINATOR = '','',\n\tFIELDQUOTE = ''''\n)\nOPTION (LABEL = ''COPY : Load [@{pipeline().parameters.SchemaName}].[HackneyLicense] - Taxi dataset'');\n\nCOPY INTO [@{pipeline().parameters.SchemaName}].[Medallion]\nFROM ''https://nytaxiblob.blob.core.windows.net/2013/Medallion''\nWITH\n(\n    FILE_TYPE = ''CSV'',\n\tFIELDTERMINATOR = '','',\n\tFIELDQUOTE = ''''\n)\nOPTION (LABEL = ''COPY : Load [@{pipeline().parameters.SchemaName}].[Medallion] - Taxi dataset'');\n\nCOPY INTO [@{pipeline().parameters.SchemaName}].[Time]\nFROM ''https://nytaxiblob.blob.core.windows.net/2013/Time''\nWITH\n(\n    FILE_TYPE = ''CSV'',\n\tFIELDTERMINATOR = '','',\n\tFIELDQUOTE = ''''\n)\nOPTION (LABEL = ''COPY : Load [@{pipeline().parameters.SchemaName}].[Time] - Taxi dataset'');\n\nCOPY INTO [@{pipeline().parameters.SchemaName}].[Weather]\nFROM ''https://nytaxiblob.blob.core.windows.net/2013/Weather''\nWITH\n(\n    FILE_TYPE = ''CSV'',\n\tFIELDTERMINATOR = '','',\n\tFIELDQUOTE = '''',\n\tROWTERMINATOR=''0X0A''\n)\nOPTION (LABEL = ''COPY : Load [@{pipeline().parameters.SchemaName}].[Weather] - Taxi dataset'');\n\nCOPY INTO [@{pipeline().parameters.SchemaName}].[Trip]\nFROM ''https://nytaxiblob.blob.core.windows.net/2013/Trip2013''\nWITH\n(\n    FILE_TYPE = ''CSV'',\n\tFIELDTERMINATOR = ''|'',\n\tFIELDQUOTE = '''',\n\tROWTERMINATOR=''0X0A'',\n\tCOMPRESSION = ''GZIP''\n)\nOPTION (LABEL = ''COPY : Load [@{pipeline().parameters.SchemaName}].[Trip] - Taxi dataset'');\n')\nselect Count(*) from sys.symmetric_keys;\nEND",
+                                    "type": "Expression"
+                                },
+                                "queryTimeout": "02:00:00",
+                                "partitionOption": "None"
+                            },
+                            "dataset": {
+                                "referenceName": "NYC_Taxi_Dataset_Source",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "SchemaName": {
+                                        "value": "@pipeline().parameters.SchemaName",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "name": "Execute Stored Procedure For Creating Tables",
+                        "description": "This activity will execute the stored procedure for creating tables",
+                        "type": "SqlServerStoredProcedure",
+                        "dependsOn": [
+                            {
+                                "activity": "Create Stored Proc For NYC Taxi Tables",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.00:10:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "storedProcedureName": {
+                                "value": "[[@{pipeline().parameters.SchemaName}].[SchemaCreationProc]",
+                                "type": "Expression"
+                            }
+                        },
+                        "linkedServiceName": {
+                            "referenceName": "azure_synapse_linkedservice",
+                            "type": "LinkedServiceReference"
+                        }
+                    },
+                    {
+                        "name": "Exexure Stored Procedure Fro Data Loading",
+                        "description": "This activity will execute stored procedure for loading data into tables.",
+                        "type": "SqlServerStoredProcedure",
+                        "dependsOn": [
+                            {
+                                "activity": "Create Stored Proc For NYC Taxi Data Loading",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.00:30:00",
+                            "retry": 3,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "storedProcedureName": {
+                                "value": "@{pipeline().parameters.SchemaName}.DataLoadingProc",
+                                "type": "Expression"
+                            }
+                        },
+                        "linkedServiceName": {
+                            "referenceName": "azure_synapse_linkedservice",
+                            "type": "LinkedServiceReference"
+                        }
+                    },
+                    {
+                        "name": "Create Schema If Does Not Exists",
+                        "description": "This activity will check for schema and will create schema if it does not exist.",
+                        "type": "Lookup",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "7.00:00:00",
+                            "retry": 3,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "SqlDWSource",
+                                "sqlReaderQuery": {
+                                    "value": "select Count(*) from sys.symmetric_keys;\nBEGIN\nEXEC('CREATE PROCEDURE @{pipeline().parameters.SchemaName}.SchemaCreationProc\nAS\nIF OBJECT_ID(N''[@{pipeline().parameters.SchemaName}].[Date]'', N''U'') IS NULL\nBEGIN\nCREATE TABLE [@{pipeline().parameters.SchemaName}].[Date]\n(\n    [DateID] int NOT NULL,\n    [Date] datetime NULL,\n    [DateBKey] char(10) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DayOfMonth] varchar(2) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DaySuffix] varchar(4) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DayName] varchar(9) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DayOfWeek] char(1) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DayOfWeekInMonth] varchar(2) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DayOfWeekInYear] varchar(2) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DayOfQuarter] varchar(3) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DayOfYear] varchar(3) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [WeekOfMonth] varchar(1) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [WeekOfQuarter] varchar(2) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [WeekOfYear] varchar(2) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [Month] varchar(2) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [MonthName] varchar(9) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [MonthOfQuarter] varchar(2) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [Quarter] char(1) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [QuarterName] varchar(9) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [Year] char(4) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [YearName] char(7) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [MonthYear] char(10) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [MMYYYY] char(6) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [FirstDayOfMonth] date NULL,\n    [LastDayOfMonth] date NULL,\n    [FirstDayOfQuarter] date NULL,\n    [LastDayOfQuarter] date NULL,\n    [FirstDayOfYear] date NULL,\n    [LastDayOfYear] date NULL,\n    [IsHolidayUSA] bit NULL,\n    [IsWeekday] bit NULL,\n    [HolidayUSA] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL\n)\nWITH\n(\n    DISTRIBUTION = ROUND_ROBIN,\n    CLUSTERED COLUMNSTORE INDEX\n);\nELSE\nBEGIN\n    select Count(*) from sys.symmetric_keys;\nEND\n\nIF OBJECT_ID(N''[@{pipeline().parameters.SchemaName}].[Geography]'', N''U'') IS NULL\nBEGIN\nCREATE TABLE [@{pipeline().parameters.SchemaName}].[Geography]\n(\n    [GeographyID] int NOT NULL,\n    [ZipCodeBKey] varchar(10) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,\n    [County] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [City] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [State] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [Country] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [ZipCode] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL\n)\nWITH\n(\n    DISTRIBUTION = ROUND_ROBIN,\n    CLUSTERED COLUMNSTORE INDEX\n);\nELSE\nBEGIN\n    select Count(*) from sys.symmetric_keys;\nEND\n\nIF OBJECT_ID(N''[@{pipeline().parameters.SchemaName}].[HackneyLicense]'', N''U'') IS NULL\nBEGIN\nCREATE TABLE [@{pipeline().parameters.SchemaName}].[HackneyLicense]\n(\n    [HackneyLicenseID] int NOT NULL,\n    [HackneyLicenseBKey] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,\n    [HackneyLicenseCode] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL\n)\nWITH\n(\n    DISTRIBUTION = ROUND_ROBIN,\n    CLUSTERED COLUMNSTORE INDEX\n);\nELSE\nBEGIN\n    select Count(*) from sys.symmetric_keys;\nEND\n\nIF OBJECT_ID(N''[@{pipeline().parameters.SchemaName}].[Medallion]'', N''U'') IS NULL\nBEGIN\nCREATE TABLE [@{pipeline().parameters.SchemaName}].[Medallion]\n(\n    [MedallionID] int NOT NULL,\n    [MedallionBKey] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,\n    [MedallionCode] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL\n)\nWITH\n(\n    DISTRIBUTION = ROUND_ROBIN,\n    CLUSTERED COLUMNSTORE INDEX\n);\nELSE\nBEGIN\n    select Count(*) from sys.symmetric_keys;\nEND\n\n\nIF OBJECT_ID(N''[@{pipeline().parameters.SchemaName}].[Time]'', N''U'') IS NULL\nBEGIN\nCREATE TABLE [@{pipeline().parameters.SchemaName}].[Time]\n(\n    [TimeID] int NOT NULL,\n    [TimeBKey] varchar(8) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,\n    [HourNumber] tinyint NOT NULL,\n    [MinuteNumber] tinyint NOT NULL,\n    [SecondNumber] tinyint NOT NULL,\n    [TimeInSecond] int NOT NULL,\n    [HourlyBucket] varchar(15) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,\n    [DayTimeBucketGroupKey] int NOT NULL,\n    [DayTimeBucket] varchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL\n)\nWITH\n(\n    DISTRIBUTION = ROUND_ROBIN,\n    CLUSTERED COLUMNSTORE INDEX\n);\nELSE\nBEGIN\n    select Count(*) from sys.symmetric_keys;\nEND\n\nIF OBJECT_ID(N''[@{pipeline().parameters.SchemaName}].[Trip]'', N''U'') IS NULL\nBEGIN\nCREATE TABLE [@{pipeline().parameters.SchemaName}].[Trip]\n(\n    [DateID] int NOT NULL,\n    [MedallionID] int NOT NULL,\n    [HackneyLicenseID] int NOT NULL,\n    [PickupTimeID] int NOT NULL,\n    [DropoffTimeID] int NOT NULL,\n    [PickupGeographyID] int NULL,\n    [DropoffGeographyID] int NULL,\n    [PickupLatitude] float NULL,\n    [PickupLongitude] float NULL,\n    [PickupLatLong] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [DropoffLatitude] float NULL,\n    [DropoffLongitude] float NULL,\n    [DropoffLatLong] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [PassengerCount] int NULL,\n    [TripDurationSeconds] int NULL,\n    [TripDistanceMiles] float NULL,\n    [PaymentType] varchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,\n    [FareAmount] money NULL,\n    [SurchargeAmount] money NULL,\n    [TaxAmount] money NULL,\n    [TipAmount] money NULL,\n    [TollsAmount] money NULL,\n    [TotalAmount] money NULL\n)\nWITH\n(\n    DISTRIBUTION = ROUND_ROBIN,\n    CLUSTERED COLUMNSTORE INDEX\n);\nELSE\nBEGIN\n    select Count(*) from sys.symmetric_keys;\nEND\n\nIF OBJECT_ID(N''[@{pipeline().parameters.SchemaName}].[Weather]'', N''U'') IS NULL\nBEGIN\nCREATE TABLE [@{pipeline().parameters.SchemaName}].[Weather]\n(\n    [DateID] int NOT NULL,\n    [GeographyID] int NOT NULL,\n    [PrecipitationInches] float NOT NULL,\n    [AvgTemperatureFahrenheit] float NOT NULL\n)\nWITH\n(\n    DISTRIBUTION = ROUND_ROBIN,\n    CLUSTERED COLUMNSTORE INDEX\n);\nELSE\nBEGIN\n    select Count(*) from sys.symmetric_keys;\nEND')\n\nselect Count(*) from sys.symmetric_keys;\nEND",
+                                    "type": "Expression"
+                                },
+                                "queryTimeout": "02:00:00",
+                                "partitionOption": "None"
+                            },
+                            "dataset": {
+                                "referenceName": "NYC_Taxi_Dataset_Source",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "SchemaName": {
+                                        "value": "@pipeline().parameters.SchemaName",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ],
+                "parameters": {
+                    "SchemaName": {
+                        "type": "string",
+                        "defaultValue": "dbo"
+                    }
+                },
+                "folder": {
+                    "name": "NYC_Taxi_Data_Loading"
+                },
+                "annotations": [],
+                "lastPublishTime": "2021-06-04T13:15:52Z"
+            },
+            "dependsOn": [
+                "[parameters('factoryName')]",
+                "[concat(variables('factoryId'), '/datasets/NYC_Taxi_Dataset_Source')]",
+                "[concat(variables('factoryId'), '/linkedServices/azure_synapse_linkedservice')]"
+            ]
+        }
+    ]
+}
