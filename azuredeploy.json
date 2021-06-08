@@ -4,37 +4,64 @@
     "parameters": {
         "factoryName": {
             "type": "string",
+            "defaultValue": "nyctaxidataadf",
             "metadata": {
                 "description": "The name you provide will be appended with a unique sting to make it globally available. The name can contain only letters, numbers and hyphens. The first and last characters must be a letter or number. Spaces are not allowed."
             }
         },
         "location": {
             "type": "string",
+            "defaultValue": "eastus",
             "metadata": {
                 "description": "Location of the data factory. Currently, only East US, East US 2, and West Europe are supported. "
             }
         },
 
         "synapseWorkspaceName": {
-            "type": "string"
+            "type": "string",
+             "defaultValue": "nyctaxidataws",
+            "metadata": {
+                "description": "Workspace name must be between 1 and 50 characters long. Name must contain only lowercase letters or numbers or hyphens. Name must start with a letter or a number, name must not contain '-ondemand' word "
+            }
         },
         "synapseWorkspaceStorageAccountName": {
-            "type": "string"
+            "type": "string",
+            "defaultValue": "nyctaxidataact",
+            "metadata": {
+                "description": "Storage account name must be between 3 and 24 characters in length and use numbers and lower-case letters only "
+            }
         },
         "synapseWorkspaceStorageFilesystemName": {
-            "type": "string"
+            "type": "string",
+            "defaultValue": "nyctaxidatfile",
+            "metadata": {
+                "description": "Filesystem name must be between 3 and 63 characters long."
+            }
         },
         "sqlPoolAdministratorLogin": {
-            "type": "string"
+            "type": "string",
+            "metadata": {
+                "description": "Your login name must not contain a SQL Identifier or a typical system name (like admin, administrator, sa, root, dbmanager, loginmanager, etc.) or a built-in database user or role (like dbo, guest, public, etc.). Your login name must not include non-alphanumeric characters
+Your login name must not start with numbers or symbols"
+            }
         },
         "sqlPoolAdministratorLoginPassword": {
-            "type": "secureString"
+            "type": "secureString",
+            "metadata": {
+                "description": "Your password must be at least 8 characters in length. Your password must be no more than 128 characters in length. Your password must contain characters from three of the following categories – English uppercase letters, English lowercase letters, numbers (0-9), and non-alphanumeric characters (!, $, #, %, etc.).
+. Your password cannot contain all or part of the login name. Part of a login name is defined as three or more consecutive alphanumeric characters."
+            }
         },
         "SqlPoolName": {
-            "type": "string"
+            "type": "string",
+            "defaultValue": "nyctaxidatapool",
+             "metadata": {
+                "description": "The Name should not contain reserved words."
+            }
         },
         "synapseWorkspacestorageRoleUniqueId": {
-            "type": "string"
+            "type": "string",
+            "defaultValue": "nyctaxidatapool"
         },
         "keyVaultName": {
             "type": "string",
@@ -51,7 +78,7 @@
     },
 
     "variables": {
-         "factoryName": "[concat(parameters('factoryName'), uniquestring(resourceGroup().id))]",
+        "factoryName": "[concat(parameters('factoryName'), uniquestring(resourceGroup().id))]",
         "keyVaultName": "[concat(parameters('keyVaultName'), uniquestring(resourceGroup().id))]",
         "keyVaultTemplateUri": "https://raw.githubusercontent.com/emumba-msft-data-pipelines/nyc-taxi-data-pipeline/nyctaxiPipelineLinkedARM/keyVault/azuredeploy.json",
         "keyVaultPermissionsUpdateTemplateUri": "https://raw.githubusercontent.com/emumba-msft-data-pipelines/nyc-taxi-data-pipeline/nyctaxiPipelineLinkedARM/keyVaultPermissionsUpdate/azuredeploy.json",
