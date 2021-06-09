@@ -86,18 +86,7 @@
                         "endIpAddress": "255.255.255.255"
                     }
                 },
-                {
-                    "type": "Microsoft.Synapse/workspaces/firewallRules",
-                    "apiVersion": "2019-06-01-preview",
-                    "name": "AllowAllWindowsAzureIps",
-                    "location": "[parameters('location')]",
-                    "dependsOn": [
-                        "[concat('Microsoft.Synapse/workspaces/', parameters('synapseWorkspaceName'))]"],
-                    "properties": {
-                        "startIpAddress": "0.0.0.0",
-                        "endIpAddress": "0.0.0.0"
-                    }
-                },
+               
                 {
                     "type": "Microsoft.Synapse/workspaces/integrationruntimes",
                     "apiVersion": "2019-06-01-preview",
