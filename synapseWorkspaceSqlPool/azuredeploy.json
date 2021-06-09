@@ -87,7 +87,7 @@
                     }
                 },
                 {
-                    "type": "firewallrules",
+                    "type": "Microsoft.Synapse/workspaces/firewallRules",
                     "apiVersion": "2019-06-01-preview",
                     "name": "AllowAllWindowsAzureIps",
                     "location": "[parameters('location')]",
